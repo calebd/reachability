@@ -7,42 +7,28 @@
 
 #import "CMDReachability.h"
 
-#if __has_feature(objc_arc)
-#error This class cannot be compiled with ARC
-#endif
-
 #pragma mark - class resources
 
-static NSString * const GCReachabilityDidChangeNotification = @"GCReachabilityDidChange";
+static NSString * const CMDReachabilityDidChangeNotification = @"CMDReachabilityDidChange";
 static NSMutableDictionary *CMDReachabilityObjects = nil;
 
 #pragma mark - reachability callback
 
-void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info);
+void CMDReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info);
 
 #pragma mark - private interface
 
 @interface CMDReachability () {
-@private
-    SCNetworkReachabilityRef reachability;
+    SCNetworkReachabilityRef _reachability;
 }
 
 @property (readwrite, assign) SCNetworkReachabilityFlags flags;
-
-- (id)initWithHost:(NSString *)host;
-
-- (BOOL)startUpdatingReachability;
-
-- (BOOL)stopUpdatingReachability;
-
 
 @end
 
 #pragma mark - implementation
 
 @implementation CMDReachability
-
-@synthesize flags = _flags;
 
 #pragma mark - class methods
 
@@ -57,9 +43,6 @@ void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkR
     if (reachability == nil) {
         reachability = [[CMDReachability alloc] initWithHost:host];
         [CMDReachabilityObjects setObject:reachability forKey:host];
-#if !__has_feature(objc_arc)
-        [reachability release];
-#endif
     }
     return reachability;
 }
@@ -69,8 +52,8 @@ void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkR
 - (id)initWithHost:(NSString *)host {
     self = [super init];
     if (self) {
-        reachability = SCNetworkReachabilityCreateWithName(kCFAllocatorDefault, [host UTF8String]);
-        self.flags = 0;
+        _reachability = SCNetworkReachabilityCreateWithName(kCFAllocatorDefault, [host UTF8String]);
+        _flags = 0;
         if (![self startUpdatingReachability]) {
             NSLog(@"[%@] Unable start updating reachability for host %@",
                   NSStringFromClass([self class]),
@@ -82,18 +65,17 @@ void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkR
 
 - (void)dealloc {
     [self stopUpdatingReachability];
-    if (reachability != NULL) {
-        CFRelease(reachability);
+    if (_reachability != NULL) {
+        CFRelease(_reachability);
     }
-    reachability = NULL;
-    [super dealloc];
+    _reachability = NULL;
 }
 
 - (BOOL)startUpdatingReachability {
     BOOL result = NO;
-    SCNetworkReachabilityContext context = {0, self, NULL, NULL, NULL};
-    if (SCNetworkReachabilitySetCallback(reachability, GCReachabilityDidChangeCallback, &context)) {
-        if (SCNetworkReachabilityScheduleWithRunLoop(reachability, CFRunLoopGetMain(), kCFRunLoopDefaultMode)) {
+    SCNetworkReachabilityContext context = {0, (__bridge void *)self, NULL, NULL, NULL};
+    if (SCNetworkReachabilitySetCallback(_reachability, CMDReachabilityDidChangeCallback, &context)) {
+        if (SCNetworkReachabilityScheduleWithRunLoop(_reachability, CFRunLoopGetMain(), kCFRunLoopDefaultMode)) {
             result = YES;
         }
     }
@@ -101,61 +83,61 @@ void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkR
 }
 
 - (BOOL)stopUpdatingReachability {
-    BOOL loop = SCNetworkReachabilityUnscheduleFromRunLoop(reachability, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
-    BOOL callback = SCNetworkReachabilitySetCallback(reachability, NULL, NULL);
+    BOOL loop = SCNetworkReachabilityUnscheduleFromRunLoop(_reachability, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    BOOL callback = SCNetworkReachabilitySetCallback(_reachability, NULL, NULL);
     return (loop && callback);
 }
 
 - (BOOL)isReachable {
-    return (self.status != GCNotReachable);
+    return (self.status != CMDNotReachable);
 }
 
 - (BOOL)isReachableViaWiFi {
-    return (self.status == GCReachableViaWiFi);
+    return (self.status == CMDReachableViaWiFi);
 }
 
 - (BOOL)isReachableViaWWAN {
-    return (self.status == GCReachableViaWWAN);
+    return (self.status == CMDReachableViaWWAN);
 }
 
-- (GCReachabilityStatus)status {
-    
+- (CMDReachabilityStatus)status {
+
     // get flags
     SCNetworkReachabilityFlags flags = self.flags;
-    
+
     // check status
     if ((flags & kSCNetworkReachabilityFlagsReachable) == 0) {
-        return GCNotReachable;
+        return CMDNotReachable;
     }
-    GCReachabilityStatus status = GCNotReachable;
+    CMDReachabilityStatus status = CMDNotReachable;
     if ((flags & kSCNetworkReachabilityFlagsConnectionRequired) == 0) {
-        status = GCReachableViaWiFi;
+        status = CMDReachableViaWiFi;
     }
     if (((flags & kSCNetworkReachabilityFlagsConnectionOnDemand) != 0) ||
         ((flags & kSCNetworkReachabilityFlagsConnectionOnTraffic) != 0)) {
         if ((flags & kSCNetworkReachabilityFlagsInterventionRequired) == 0) {
-            status = GCReachableViaWiFi;
+            status = CMDReachableViaWiFi;
         }
     }
     if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0) {
-		status = GCReachableViaWWAN;
-	}
+        status = CMDReachableViaWWAN;
+    }
     return status;
-    
+
 }
 
 - (void)addObserver:(id)observer selector:(SEL)selector {
     [[NSNotificationCenter defaultCenter]
      addObserver:observer
      selector:selector
-     name:GCReachabilityDidChangeNotification
+     name:CMDReachabilityDidChangeNotification
      object:self];
 }
 
 - (void)removeObserver:(id)observer {
     [[NSNotificationCenter defaultCenter]
      removeObserver:observer
-     name:GCReachabilityDidChangeNotification
+     name:CMDReachabilityDidChangeNotification
      object:self];
 }
 
@@ -163,10 +145,10 @@ void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkR
 
 #pragma mark - reachability callbak
 
-void GCReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info) {
-    CMDReachability *reachability = (id)info;
+void CMDReachabilityDidChangeCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info) {
+    CMDReachability *reachability = (__bridge id)info;
     reachability.flags = flags;
     [[NSNotificationCenter defaultCenter]
-     postNotificationName:GCReachabilityDidChangeNotification
+     postNotificationName:CMDReachabilityDidChangeNotification
      object:reachability];
 }

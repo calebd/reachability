@@ -10,11 +10,11 @@
 
 // reachability status
 enum {
-    GCNotReachable,
-    GCReachableViaWiFi,
-    GCReachableViaWWAN
+    CMDNotReachable,
+    CMDReachableViaWiFi,
+    CMDReachableViaWWAN
 };
-typedef NSUInteger GCReachabilityStatus;
+typedef NSUInteger CMDReachabilityStatus;
 
 // reachability api wrapper
 @interface CMDReachability : NSObject
@@ -24,27 +24,27 @@ typedef NSUInteger GCReachabilityStatus;
 @property (nonatomic, readonly, getter = isReachable) BOOL reachable;
 @property (nonatomic, readonly, getter = isReachableViaWiFi) BOOL reachableViaWiFi;
 @property (nonatomic, readonly, getter = isReachableViaWWAN) BOOL reachableViaWWAN;
-@property (nonatomic, readonly) GCReachabilityStatus status;
+@property (nonatomic, readonly) CMDReachabilityStatus status;
 
 /*
- 
+
  Fetch a reachability object configured to watch the given host.
- 
+
  */
 + (CMDReachability *)reachabilityForHost:(NSString *)host;
 
 /*
- 
+
  Register the given observer for notifications about reachability changes.
  These notifications are posted using NSNotificationCenter on the main thread.
- 
+
  */
 - (void)addObserver:(id)observer selector:(SEL)selector;
 
 /*
- 
+
  Remove the given observer from the notification dispatch table.
- 
+
  */
 - (void)removeObserver:(id)observer;
 
